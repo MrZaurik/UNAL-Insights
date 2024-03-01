@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+px.defaults.template = 'seaborn'
+
+
 # Cargar los datos
 df = pd.read_csv('dataset.csv')
 promediosCalificaciones = df['PAPA'].mean()
@@ -9,11 +12,10 @@ promediosPuntajesAdmision = df['PUNTAJE_ADMISION'].mean()
 promediosEstrado = df['ESTRATO'].mean()
 
 # Barra lateral
-st.sidebar.title('DataUNAL')
+st.sidebar.title('UNAL Insights')
 btn_switch_section = st.sidebar.button('Cambiar Sección')
 st.sidebar.markdown(
     '**Autores:** Juan G. Saurith M., Jose Miguel Gutierrez Mieles, Raúl Rafael Romero Arias, Marlon Felipe Durán Celis')
-
 # Verificar el estado actual de la sección
 current_section = st.session_state.get('current_section', 'Main')
 
@@ -34,7 +36,7 @@ if current_section == 'Main':
             }
         </style>
     """, unsafe_allow_html=True)
-
+    st.sidebar.markdown('UNAL Insights es una propuesta desarrollada en el marco de la asignatura _Programación en Lenguajes Estadísticos_ con el objetivo principal de hacer clara algunas de las características de la población estudiantil de la Universidad Nacional de Colombia Sede de La Paz. El dashboard cuenta con dos secciones: **Main** y **Custom**. En la sección **Main** se presenta información descriptiva de la población estudiantil, mientras que en la sección **Custom** se permite al usuario interactuar con los datos y visualizar información específica según sus necesidades. Para cambiar de sección, haga clic en el botón **Cambiar Sección** en la barra lateral.')
     st.title('DataUNAL')
     st.write('El siguiente dashboard muestra información descriptiva acerca de la población universitaria de la Universidad Nacional de Colombia Sede de La Paz.')
 
@@ -54,21 +56,41 @@ if current_section == 'Main':
     with col[1]:
         st.subheader('Visualizaciones')
 
+        df_grouped = df.groupby(
+            ['PLAN', 'GENERO']).size().reset_index(name='Count')
+
         # Gráfico de barras por programa
         st.plotly_chart(
-            px.bar(df, x='PLAN', title='Cantidad de Estudiantes por Programa', color="GENERO", barmode="group"))
+            px.bar(
+                df_grouped,
+                x='PLAN',
+                y='Count',
+                title='Cantidad de Estudiantes por Programa y Género',
+                color='GENERO',
+                barmode='group'
+            ))
 
         # Gráfico de barras por género
+        df_grouped_gender = df.groupby(
+            'GENERO').size().reset_index(name='Count')
         st.plotly_chart(
-            px.bar(df, x='GENERO', title='Cantidad de Estudiantes por Género'))
+            px.bar(
+                df_grouped_gender,
+                x='GENERO',
+                y='Count',
+                title='Cantidad de Estudiantes por Género'
+            )
+        )
 
         # Gráfico de barras por estrato
-        # st.plotly_chart(
-        # px.histogram(df, x='ESTRATO', title='Cantidad de Estudiantes por Estrato'))
+        st.plotly_chart(
+            px.histogram(df, x='ESTRATO', title='Cantidad de Estudiantes por Estrato'))
 
         # Gráfico de barras por convocatoria
-        # st.plotly_chart(
-        # px.bar(df, x='CONVOCATORIA', title='Cantidad de Estudiantes por Convocatoria'))
+        df_grouped_convocatoria = df.groupby(
+            'CONVOCATORIA').size().reset_index(name='Count')
+        st.plotly_chart(
+            px.bar(df_grouped_convocatoria, x='CONVOCATORIA', y='Count', title='Cantidad de Estudiantes por Convocatoria'))
 
         # Gráfico histograma de Edad
         st.plotly_chart(
@@ -92,8 +114,10 @@ if current_section == 'Main':
         )
 
         # Gráfico de Barras Apiladas para Provincias de Nacimiento:
+        df_provincia = df.groupby(
+            ['PROVINCIA_NACIMIENTO', 'GENERO']).size().reset_index(name='Count')
         st.plotly_chart(
-            px.bar(df, x='PROVINCIA_NACIMIENTO', title='Cantidad de Estudiantes por Provincia de Nacimiento', color="GENERO", barmode="group")) 
+            px.bar(df_provincia, x='PROVINCIA_NACIMIENTO', y='Count', title='Cantidad de Estudiantes por Provincia de Nacimiento', color="GENERO", barmode="group"))
 
 # Sección "Custom"
 elif current_section == 'Custom':
@@ -104,7 +128,7 @@ elif current_section == 'Custom':
         'Programas Curriculares', df['PLAN'].unique())
     generos = st.sidebar.multiselect('Género', df['GENERO'].unique())
     periodos_ingreso = st.sidebar.multiselect(
-        'Periodo de Ingreso', df['CONVOCATORIA'].unique())
+        'Periodo de Ingreso', ['2019-2S', '2020-1S', '2020-2S', '2021-1S', '2021-2S', '2022-1S', '2022-2S', '2023-1S', '2023-2S', '2024-1S'])
 
     # Filtrar el DataFrame según las selecciones del usuario
     filtered_df = df[df['PLAN'].isin(programas) & df['GENERO'].isin(
@@ -112,11 +136,31 @@ elif current_section == 'Custom':
 
     # Visualizaciones basadas en las selecciones del usuario
     if not filtered_df.empty:
-        # Histograma, gráfico de violín, etc.
-        st.plotly_chart(px.histogram(filtered_df, x='PAPA',
-                        color_discrete_sequence=['#0a9396']))
-        st.plotly_chart(px.violin(filtered_df, y="PAPA", x="ESTRATO",
-                        color_discrete_sequence=['#0a9396'], box=True, points="all"))
+
+        # Histograma de Edades por Programa, Género y Periodo de Ingreso
+        st.plotly_chart(px.histogram(filtered_df, x='EDAD', color='GENERO', facet_col='PLAN', facet_row='CONVOCATORIA', title='Histograma de Edades por Programa, Género y Periodo de Ingreso')
+                        )
+
+        # Histograma de Promedios por Plan y Genero Seleccionado
+        st.plotly_chart(px.histogram(filtered_df, x='PAPA', color='GENERO', facet_col='PLAN', title='Histograma de Promedios por Plan y Genero Seleccionado')
+                        )
+
+        # Dispersión de Puntajes de Admisión por Edad, Genero y Programa (Tamaño de Punto por Estrato Socioeconómico)
+        st.plotly_chart(px.scatter(filtered_df, x='EDAD', y='PUNTAJE_ADMISION', color='GENERO', size='ESTRATO', facet_col='PLAN', title='Dispersión de Puntajes de Admisión por Edad, Genero y Programa (Estrato Socioeconómico)')
+                        )
+
+        # Gráfico de Violín de Puntaje de Admisión por Carrera y Género
+        st.plotly_chart(
+            px.violin(filtered_df, y="PUNTAJE_ADMISION", x="PLAN",
+                      color="GENERO", title='Puntaje de Admisión por Carrera y Género')
+        )
+
+        # Grafico de Caja de Bigotes de PAPA por Carrera y Género
+        st.plotly_chart(
+            px.box(filtered_df, x='PLAN', y='PAPA', color='GENERO',
+                   title='PAPA por Carrera y Género')
+        )
+
     else:
         st.warning('No hay datos que coincidan con las selecciones.')
 
