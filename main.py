@@ -10,7 +10,7 @@ df = pd.read_csv('dataset.csv')
 promediosCalificaciones = df['PAPA'].mean()
 promediosPuntajesAdmision = df['PUNTAJE_ADMISION'].mean()
 promediosPeriodosCursados = df['NUMERO_MATRICULAS'].mean()
-promediosEstrado = df['ESTRATO'].mean()
+promediosEstrato = df['ESTRATO'].mean()
 
 # Crear la aplicación
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -81,7 +81,7 @@ app.layout = dbc.Container(
                                 get_card_component('Avg Admision Score', str(
                                     promediosPuntajesAdmision)),
                                 get_card_component(
-                                    'Avg Estrato', str(promediosEstrado)),
+                                    'Avg Estrato', str(promediosEstrato)),
                             ]
                         ),
                         dbc.Row(
@@ -127,8 +127,6 @@ app.layout = dbc.Container(
                             ],
                             style={'margin-top': '20px'}
                         ),
-
-
                     ],
                     width=9,  # Ancho de la sección de gráficos (70%)
                     style={'padding': '40px'}
@@ -145,6 +143,8 @@ app.layout = dbc.Container(
 
 @app.callback(
     Output("score-distribution-histogram", "figure"),
+    Output("violin-estrato-papa", "figure"),
+    Output("pie-chart-genero", "figure"),
     Output("content-display", "children"),
     Output("btn-main", "color"),
     Output("btn-custom", "color"),
@@ -160,7 +160,14 @@ def update_section(btn_main_clicks, btn_custom_clicks):
 
     if button_id == "btn-main":
         # Lógica para la sección "Main"
-        figure = px.scatter()  # Figura vacía para "Main"
+        figure = px.histogram(df, x='NUMERO_MATRICULAS',
+                              color_discrete_sequence=['#0a9396'])
+        violin_figure = px.violin(df, y="PAPA", x="ESTRATO",
+                                  color_discrete_sequence=['#0a9396'],
+                                  box=True, points="all")
+        pie_chart_figure = px.pie(df, names='GENERO',
+                                  title='Distribución de Género')
+
         content = html.P("Texto aleatorio para la sección 'Main'")
         btn_main_color = "primary"
         btn_custom_color = "info"
@@ -224,48 +231,42 @@ def update_section(btn_main_clicks, btn_custom_clicks):
             style={'padding': '20px'}
         )
 
+        # Filtrar el DataFrame según las selecciones del usuario en la sección "Custom"
+        selected_programs = [f'checkbox-{i}' for i in range(1, 7)]
+        selected_programs = [
+            prog for prog in selected_programs if content[0][prog].value]
+
+        selected_gender = content[0]['dropdown-genero'].value
+        selected_periodo_ingreso = content[0]['dropdown-periodo-ingreso'].value
+
+        # Obtener el ID del componente que activó el callback
+        triggered_id = dash.callback_context.triggered_id
+
+        # Usar el ID para obtener el valor del componente de manera segura
+        if triggered_id in selected_programs:
+            selected_programs = [content[0][triggered_id].label]
+
+        filtered_df = df[df['PLAN'].isin(selected_programs) &
+                         (df['GENERO'].isin(selected_gender) | df['GENERO'].isna()) &
+                         (df['CONVOCATORIA'].isin(selected_periodo_ingreso) | df['CONVOCATORIA'].isna())]
+
+        # Estadísticas para la sección "Custom"
+        promediosCalificaciones = filtered_df['PAPA'].mean()
+        promediosPuntajesAdmision = filtered_df['PUNTAJE_ADMISION'].mean()
+        promediosPeriodosCursados = filtered_df['NUMERO_MATRICULAS'].mean()
+        promediosEstrato = filtered_df['ESTRATO'].mean()
+
+        # Gráficos adicionales para la sección "Custom"
+        violin_figure = px.violin(filtered_df, y="PAPA", x="ESTRATO",
+                                  color_discrete_sequence=['#0a9396'],
+                                  box=True, points="all")
+        pie_chart_figure = px.pie(filtered_df, names='GENERO',
+                                  title='Distribución de Género')
+
         btn_main_color = "info"
         btn_custom_color = "primary"
 
-    return figure, content, btn_main_color, btn_custom_color
-
-# Callback para el gráfico de Violin entre Estrato Socioeconómico y PAPA
-
-
-@app.callback(
-    Output("violin-estrato-papa", "figure"),
-    Input("btn-custom", "n_clicks")
-)
-def update_violin_estrato_papa(btn_custom_clicks):
-    if btn_custom_clicks:
-        figure = px.violin(
-            df, y="PAPA", x="ESTRATO",
-            color_discrete_sequence=['#0a9396'],
-            box=True, points="all"
-        )
-        figure.update_layout(
-            title="Violin Plot: Estrato Socioeconómico vs PAPA",
-            xaxis_title="Estrato Socioeconómico",
-            yaxis_title="PAPA"
-        )
-        return figure
-    else:
-        return px.scatter()
-
-# Callback para el gráfico de Diagrama Circular con información de género
-
-
-@app.callback(
-    Output("pie-chart-genero", "figure"),
-    Input("btn-custom", "n_clicks")
-)
-def update_pie_chart_genero(btn_custom_clicks):
-    if btn_custom_clicks:
-        figure = px.pie(
-            df, names='GENERO', title='Distribución de Género')
-        return figure
-    else:
-        return px.scatter()
+    return figure, violin_figure, pie_chart_figure, content, btn_main_color, btn_custom_color
 
 
 # Ejecutar la aplicación
